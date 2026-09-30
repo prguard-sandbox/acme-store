@@ -2,8 +2,17 @@ import express, { type ErrorRequestHandler, type Express } from "express";
 import { ZodError } from "zod";
 import { isAppError } from "./lib/errors";
 import { errorFields, logger } from "./lib/logger";
+import { createInventorySyncRouter } from "./routes/inventory-sync";
 import { ordersRouter } from "./routes/orders";
 import { productsRouter } from "./routes/products";
+import type { InventorySyncService } from "./services/inventory-sync";
+import type { SyncScheduler } from "./services/sync-scheduler";
+
+export interface AppDeps {
+  /** Present when the supplier integration is configured. */
+  inventorySync?: InventorySyncService;
+  scheduler?: SyncScheduler;
+}
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) {
@@ -31,7 +40,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   res.status(500).json({ error: { code: "internal_error", message: "Something went wrong" } });
 };
 
-export function createApp(): Express {
+export function createApp(deps: AppDeps = {}): Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "100kb" }));
@@ -55,6 +64,12 @@ export function createApp(): Express {
 
   app.use("/products", productsRouter);
   app.use("/orders", ordersRouter);
+  if (deps.inventorySync) {
+    app.use(
+      "/inventory-sync",
+      createInventorySyncRouter({ sync: deps.inventorySync, scheduler: deps.scheduler }),
+    );
+  }
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } });
