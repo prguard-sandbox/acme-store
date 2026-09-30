@@ -27,6 +27,17 @@ const updatePriceBody = z.object({
   priceCents: z.number().int().min(0).max(100_000_00),
 });
 
+const linkSupplierBody = z
+  .object({
+    supplierSku: z.string().min(1).max(64),
+    reorderPoint: z.number().int().min(0).max(1_000_000),
+    targetStock: z.number().int().min(0).max(1_000_000),
+  })
+  .refine((body) => body.targetStock >= body.reorderPoint, {
+    message: "targetStock must be at least reorderPoint",
+    path: ["targetStock"],
+  });
+
 export const productsRouter = Router();
 
 productsRouter.use(requireAuth);
@@ -68,5 +79,22 @@ productsRouter.patch("/:id/price", requireAdmin, (req, res) => {
     throw new NotFoundError("Product", id);
   }
   logger.info("product price changed", { productId: id, priceCents });
+  res.json(product);
+});
+
+productsRouter.put("/:id/supplier", requireAdmin, (req, res) => {
+  const { id } = idParams.parse(req.params);
+  const link = linkSupplierBody.parse(req.body);
+
+  const owner = products.findBySupplierSku(link.supplierSku);
+  if (owner && owner.id !== id) {
+    throw new ConflictError(`Supplier SKU ${link.supplierSku} is already linked to product ${owner.id}`);
+  }
+
+  const product = products.linkSupplier(id, link);
+  if (!product) {
+    throw new NotFoundError("Product", id);
+  }
+  logger.info("product linked to supplier", { productId: id, supplierSku: link.supplierSku });
   res.json(product);
 });
