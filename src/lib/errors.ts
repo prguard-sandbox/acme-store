@@ -45,6 +45,20 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** A dependency we call (the supplier API, ...) failed or answered something unusable. */
+export class UpstreamError extends AppError {
+  public readonly retryAfterMs: number | undefined;
+
+  constructor(
+    message: string,
+    public readonly retryable: boolean,
+    options: { details?: unknown; retryAfterMs?: number } = {},
+  ) {
+    super(502, "upstream_error", message, options.details);
+    this.retryAfterMs = options.retryAfterMs;
+  }
+}
+
 export function isAppError(err: unknown): err is AppError {
   return err instanceof AppError;
 }

@@ -39,6 +39,32 @@ const MIGRATIONS: string[] = [
      unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0)
    );
    CREATE INDEX idx_order_items_order ON order_items (order_id);`,
+  `ALTER TABLE products ADD COLUMN supplier_sku TEXT;
+   ALTER TABLE products ADD COLUMN reorder_point INTEGER NOT NULL DEFAULT 0 CHECK (reorder_point >= 0);
+   ALTER TABLE products ADD COLUMN target_stock INTEGER NOT NULL DEFAULT 0 CHECK (target_stock >= 0);
+   CREATE UNIQUE INDEX idx_products_supplier_sku ON products (supplier_sku)
+     WHERE supplier_sku IS NOT NULL;`,
+  `CREATE TABLE sync_runs (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     triggered_by TEXT NOT NULL CHECK (triggered_by IN ('schedule', 'manual')),
+     status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'succeeded', 'failed')),
+     started_at TEXT NOT NULL DEFAULT (datetime('now')),
+     finished_at TEXT,
+     items_seen INTEGER NOT NULL DEFAULT 0,
+     items_updated INTEGER NOT NULL DEFAULT 0,
+     items_failed INTEGER NOT NULL DEFAULT 0,
+     error TEXT
+   );
+   CREATE INDEX idx_sync_runs_started ON sync_runs (started_at);`,
+  `CREATE TABLE stock_movements (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     product_id INTEGER NOT NULL REFERENCES products (id),
+     delta INTEGER NOT NULL,
+     reason TEXT NOT NULL,
+     reference TEXT,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX idx_stock_movements_product ON stock_movements (product_id, id);`,
 ];
 
 /** Brings the database schema up to date. Safe to call on every boot. */
