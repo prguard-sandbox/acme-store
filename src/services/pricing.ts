@@ -54,7 +54,7 @@ export function shippingFor(subtotalCents: number): number {
   return SHIPPING_CENTS;
 }
 
-export function buildQuote(requests: LineRequest[]): Quote {
+export function buildQuote(requests: LineRequest[], discountCents: number): Quote {
   const lines = priceLines(requests);
   const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
   const taxCents = applyBasisPoints(subtotalCents, TAX_RATE_BPS);
@@ -64,7 +64,7 @@ export function buildQuote(requests: LineRequest[]): Quote {
     subtotalCents,
     taxCents,
     shippingCents,
-    totalCents: subtotalCents + taxCents + shippingCents,
+    totalCents: subtotalCents - discountCents + taxCents + shippingCents,
   };
 }
 
