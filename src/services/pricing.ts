@@ -48,7 +48,7 @@ export function priceLines(requests: LineRequest[]): PricedLine[] {
 }
 
 export function shippingFor(subtotalCents: number): number {
-  if (subtotalCents === 0 || subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS) {
+  if (subtotalCents <= 0 || subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS) {
     return 0;
   }
   return SHIPPING_CENTS;
