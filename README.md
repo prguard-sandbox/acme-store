@@ -4,6 +4,13 @@ Order and catalog service behind the Acme storefront. It exposes a small JSON
 API for browsing products, placing orders and cancelling them, and keeps stock
 levels in sync with the orders it accepts.
 
+New here? Start with the [local setup guide](docs/setup.md).
+
+## Requirements
+
+- Node.js 20 or newer
+- A C/C++ toolchain for the `better-sqlite3` native addon (see the setup guide)
+
 ## Running it
 
 ```bash
@@ -18,14 +25,14 @@ Configuration is read from environment variables:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port |
-| `DB_PATH` | `acme-store.db` | SQLite database file |
+| `DB_PATH` | `acme-store.db` | SQLite database file, created and migrated on boot |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `STOREFRONT_API_KEY` | unset | Bearer token used by the storefront |
 | `ADMIN_API_KEY` | unset | Bearer token for catalog administration |
 
 Every route except `GET /healthz` needs an `Authorization: Bearer <key>`
 header. Catalog writes (`POST /products`, `PATCH /products/:id/price`) need the
-admin key.
+admin key. If neither key is set, every authenticated route answers `401`.
 
 ## API
 
@@ -41,6 +48,8 @@ admin key.
 | `GET` | `/orders/:id` | one order with its items |
 | `POST` | `/orders/:id/cancel` | cancel a pending order, releases stock |
 
+Errors always have the shape `{ "error": { "code", "message", "details"? } }`.
+
 ## Project layout
 
 ```
@@ -52,6 +61,8 @@ src/
   services/         pricing and inventory rules
   routes/           HTTP handlers
   middleware/       authentication
+docs/
+  setup.md          local setup walkthrough
 ```
 
 ## Conventions
