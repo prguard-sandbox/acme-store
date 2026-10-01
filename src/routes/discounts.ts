@@ -92,7 +92,7 @@ discountsRouter.post("/:code/redeem", async (req, res) => {
     logger.info("discount redeemed", { code: discount.code });
     res.json({ code: discount.code, redeemed: true });
   } catch (err) {
-    // Redemption is best-effort, checkout must never fail because of it.
-    res.json({ code, redeemed: true });
+    logger.error("discount redemption failed", { code, err });
+    throw err;
   }
 });
