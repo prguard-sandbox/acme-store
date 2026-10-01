@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler, type Express } from "express";
 import { ZodError } from "zod";
 import { isAppError } from "./lib/errors";
 import { errorFields, logger } from "./lib/logger";
+import { discountsRouter } from "./routes/discounts";
 import { ordersRouter } from "./routes/orders";
 import { productsRouter } from "./routes/products";
 
@@ -55,6 +56,7 @@ export function createApp(): Express {
 
   app.use("/products", productsRouter);
   app.use("/orders", ordersRouter);
+  app.use("/discounts", discountsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } });
