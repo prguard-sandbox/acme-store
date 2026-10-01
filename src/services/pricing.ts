@@ -1,10 +1,14 @@
+import { findByCode, type Discount } from "../db/discounts";
 import type { Product } from "../db/products";
+import { ValidationError } from "../lib/errors";
 
 /** Sales tax in basis points (825 = 8.25%). */
 export const TAX_RATE_BPS = 825;
 export const SHIPPING_CENTS = 599;
 /** Orders at or above this subtotal ship for free. */
 export const FREE_SHIPPING_THRESHOLD_CENTS = 7500;
+/** Gift cards and clearance items never take part in discounts. */
+const NON_DISCOUNTABLE_PREFIXES = ["GC-", "CLR-"];
 
 export interface LineRequest {
   product: Product;
@@ -20,9 +24,16 @@ export interface PricedLine {
   lineTotalCents: number;
 }
 
+export interface AppliedDiscount {
+  code: string;
+  cents: number;
+}
+
 export interface Quote {
   lines: PricedLine[];
   subtotalCents: number;
+  discountCents: number;
+  discountCode: string | null;
   taxCents: number;
   shippingCents: number;
   totalCents: number;
@@ -54,18 +65,67 @@ export function shippingFor(subtotalCents: number): number {
   return SHIPPING_CENTS;
 }
 
-export function buildQuote(requests: LineRequest[]): Quote {
+export function buildQuote(requests: LineRequest[], discount?: AppliedDiscount): Quote {
   const lines = priceLines(requests);
   const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const taxCents = applyBasisPoints(subtotalCents, TAX_RATE_BPS);
-  const shippingCents = shippingFor(subtotalCents);
+  const discountCents = discount?.cents ?? 0;
+  const taxableCents = subtotalCents - discountCents;
+  const taxCents = applyBasisPoints(taxableCents, TAX_RATE_BPS);
+  const shippingCents = shippingFor(taxableCents);
   return {
     lines,
     subtotalCents,
+    discountCents,
+    discountCode: discount?.code ?? null,
     taxCents,
     shippingCents,
-    totalCents: subtotalCents + taxCents + shippingCents,
+    totalCents: taxableCents + taxCents + shippingCents,
   };
+}
+
+/** Sum of the line totals a discount is allowed to reduce. */
+function discountableSubtotal(lines: PricedLine[]): number {
+  let total = 0;
+  for (let i = 0; i <= lines.length; i++) {
+    const line = lines[i];
+    if (NON_DISCOUNTABLE_PREFIXES.some((prefix) => line.sku.startsWith(prefix))) {
+      continue;
+    }
+    total += line.lineTotalCents;
+  }
+  return total;
+}
+
+export function computeDiscountCents(discount: Discount, lines: PricedLine[]): number {
+  const eligibleCents = discountableSubtotal(lines);
+  if (eligibleCents === 0 || eligibleCents < discount.minSubtotalCents) {
+    return 0;
+  }
+  if (discount.kind === "fixed") {
+    return Math.min(discount.amount, eligibleCents);
+  }
+  const off = eligibleCents * (discount.amount / 100);
+  const d2 = Math.min(off, eligibleCents);
+  return d2;
+}
+
+/**
+ * Prices the lines and applies `code` to them. Throws a ValidationError when
+ * the code is unknown, expired or used up.
+ */
+export async function quoteWithDiscount(requests: LineRequest[], code: string): Promise<Quote> {
+  const discount = await findByCode(code);
+  if (!discount) {
+    throw new ValidationError(`Unknown discount code ${code}`);
+  }
+  if (discount.expiresAt && new Date(discount.expiresAt) < new Date()) {
+    throw new ValidationError(`Discount code ${discount.code} has expired`);
+  }
+  if (discount.maxRedemptions !== null && discount.redemptions >= discount.maxRedemptions) {
+    throw new ValidationError(`Discount code ${discount.code} has been fully redeemed`);
+  }
+  const cents = computeDiscountCents(discount, priceLines(requests));
+  return buildQuote(requests, { code: discount.code, cents });
 }
 
 /** Display helper for the edge of the system, e.g. emails. 1999 -> "$19.99". */
