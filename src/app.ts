@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler, type Express } from "express";
 import { ZodError } from "zod";
 import { isAppError } from "./lib/errors";
 import { errorFields, logger } from "./lib/logger";
+import { requestId } from "./middleware/request-id";
 import { ordersRouter } from "./routes/orders";
 import { productsRouter } from "./routes/products";
 
@@ -27,19 +28,22 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  logger.error("unhandled error", errorFields(err));
-  res.status(500).json({ error: { code: "internal_error", message: "Something went wrong" } });
+  (res.locals.log ?? logger).error("unhandled error", errorFields(err));
+  res.status(500).json({
+    error: { code: "internal_error", message: "Something went wrong", requestId: res.locals.requestId },
+  });
 };
 
 export function createApp(): Express {
   const app = express();
   app.disable("x-powered-by");
+  app.use(requestId);
   app.use(express.json({ limit: "100kb" }));
 
   app.use((req, res, next) => {
     const startedAt = Date.now();
     res.on("finish", () => {
-      logger.info("request", {
+      res.locals.log.info("request", {
         method: req.method,
         path: req.path,
         status: res.statusCode,
