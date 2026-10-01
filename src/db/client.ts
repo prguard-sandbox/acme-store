@@ -39,6 +39,17 @@ const MIGRATIONS: string[] = [
      unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0)
    );
    CREATE INDEX idx_order_items_order ON order_items (order_id);`,
+  `CREATE TABLE discounts (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+     kind TEXT NOT NULL CHECK (kind IN ('percent', 'fixed')),
+     amount INTEGER NOT NULL CHECK (amount > 0),
+     min_subtotal_cents INTEGER NOT NULL DEFAULT 0,
+     max_redemptions INTEGER,
+     redemptions INTEGER NOT NULL DEFAULT 0,
+     expires_at TEXT,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   )`,
 ];
 
 /** Brings the database schema up to date. Safe to call on every boot. */
